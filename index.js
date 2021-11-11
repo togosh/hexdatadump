@@ -202,32 +202,35 @@ async function grabData() {
         var newTimestamp = Number(row.timestamp) + (Number(row.stakedDays)*24*60*60);
         var expectedEndDate = new Date(newTimestamp*1000);
         expectedEndDate.setUTCHours(0, 0, 0, 0);
+        var expectedEndDateString = expectedEndDate.getUTCFullYear() + "-" + minTwoDigits(expectedEndDate.getUTCMonth() + 1) + "-" + minTwoDigits(expectedEndDate.getUTCDate());
+
+        var startDate = (new Date(Number(row.timestamp) * 1000));
+        var startDateString = startDate.getUTCFullYear() + "-" + minTwoDigits(startDate.getUTCMonth() + 1) + "-" + minTwoDigits(startDate.getUTCDate());
 
         //console.log(row.startDay + " " + Number(day - row.startDay) + " " + expectedEndDate.toUTCString().split(", ")[1]);
 
-          var newRow = {
-            CD_id:      row.id,
-            //stake_id:   row.stakeId,
-            address:    row.stakerAddr,
+        var newRow = {
+          CD_id:      row.id,
+          //stake_id:   row.stakeId,
+          address:    row.stakerAddr,
 
-            hex_staked: Number(row.stakedHearts / 100000000),
-            shares:     Number(row.stakeShares),
+          hex_staked: Number(row.stakedHearts / 100000000),
+          shares:     Number(row.stakeShares),
 
-            start_date: (new Date(Number(row.timestamp) * 1000)).toUTCString().split(", ")[1], // Number(row.timestamp),
-            //end_date:   null,
-            expected_end_date: expectedEndDate.toUTCString().split(", ")[1], // Number(expectedEndDate.getTime() / 1000),
+          start_date: startDateString, //(new Date(Number(row.timestamp) * 1000)).toUTCString().split(", ")[1], // Number(row.timestamp),
+          //end_date:   null,
+          expected_end_date: expectedEndDateString, //expectedEndDate.toUTCString().split(", ")[1], // Number(expectedEndDate.getTime() / 1000),
 
-            stake_days:         Number(row.stakedDays),
-            actual_days_staked: row.stakeEnd ? Number(row.stakeEnd.servedDays) : Number(day - row.startDay),
-            
-            ////hex_price_when_issued:  prices[row.startDay - 1],
-            //hex_price_when_ended:   null
+          stake_days:         Number(row.stakedDays),
+          actual_days_staked: row.stakeEnd ? Number(row.stakeEnd.servedDays) : Number(day - row.startDay),
+          
+          ////hex_price_when_issued:  prices[row.startDay - 1],
+          //hex_price_when_ended:   null
 
-            //start_day: Number(row.startDay)
-          }
-          stakeStartsList.push(newRow);
+          //start_day: Number(row.startDay)
         }
-      );
+        stakeStartsList.push(newRow);
+      });
 
       var stakeStartsCSV = convertCSV(stakeStartsList);
       //console.log(stakeStartsCSV);
@@ -249,33 +252,35 @@ async function grabData() {
 
         //console.log((new Date(row.stakeEnd.timestamp * 1000)).toUTCString().split(", ")[1]);
 
-          var newRow = {
-            CD_id:      row.id,
-            //stake_id:   row.stakeId,
-            //address:    row.stakerAddr,
+        var endDate = (new Date(Number(row.stakeEnd.timestamp) * 1000));
+        var endDateString = endDate.getUTCFullYear() + "-" + minTwoDigits(endDate.getUTCMonth() + 1) + "-" + minTwoDigits(endDate.getUTCDate());
 
-            payout:     Number(row.stakeEnd.payout),
-            penalty:    Number(row.stakeEnd.penalty),
+        var newRow = {
+          CD_id:      row.id,
+          //stake_id:   row.stakeId,
+          //address:    row.stakerAddr,
 
-            //hex_staked: Number(row.stakedHearts / 100000000),
-            //shares:     Number(row.stakeShares),
+          payout:     Number(row.stakeEnd.payout),
+          penalty:    Number(row.stakeEnd.penalty),
 
-            //start_date:         Number(row.timestamp),
-            end_date:           (new Date(Number(row.stakeEnd.timestamp) * 1000)).toUTCString().split(", ")[1],
-            //expected_end_date:  null,
+          //hex_staked: Number(row.stakedHearts / 100000000),
+          //shares:     Number(row.stakeShares),
 
-            //stake_days:         Number(row.stakedDays),
-            //actual_days_staked: Number(row.stakeEnd.servedDays),
+          //start_date:         Number(row.timestamp),
+          end_date:           endDateString, //(new Date(Number(row.stakeEnd.timestamp) * 1000)).toUTCString().split(", ")[1],
+          //expected_end_date:  null,
 
-            ////hex_price_when_issued:  prices[row.startDay - 1],
-            ////hex_price_when_ended:   prices[dayFind - 1],
+          //stake_days:         Number(row.stakedDays),
+          //actual_days_staked: Number(row.stakeEnd.servedDays),
 
-            //start_day: Number(row.startDay),
-            //end_day: dayFind,
-          };
-          stakeEndsList.push(newRow);
-        }
-      );
+          ////hex_price_when_issued:  prices[row.startDay - 1],
+          ////hex_price_when_ended:   prices[dayFind - 1],
+
+          //start_day: Number(row.startDay),
+          //end_day: dayFind,
+        };
+        stakeEndsList.push(newRow);
+      });
       //console.log(stakeEndsList);
 
       var stakeEndsCSV = convertCSV(stakeEndsList);
@@ -477,4 +482,8 @@ function sleep(ms) {
 
 function log(message){
 	console.log(new Date().toISOString() + ", " + message);
+}
+
+function minTwoDigits(n) {
+  return (n < 10 ? '0' : '') + n;
 }
