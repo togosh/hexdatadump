@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HEXdatadump</title> 
+    <meta name="description" content="HEX Data Dump!">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        var socket = io.connect();
+
+        socket.on('lastUpdated', function (lastUpdated) {
+            if (lastUpdated && lastUpdated.day && lastUpdated.block){
+                $("#divLastUpdated").html(
+                    "(" + 
+                    "Last Updated: " +
+                    "Day: " + lastUpdated.day + ", " +
+                    "Block: <a href='https://etherscan.io/block/" + lastUpdated.block + "' target='_blank'>" + lastUpdated.block + "</a>" +
+                    ")"
+                ); 
+            }
+        });
+    </script>
+</head>
+<body style="background-color: grey;">
+    <div>
+        <p>HEXdatadump.com</p>
+        <a href="/hex_price.csv">hex_price.csv</a></br></br>
+        <a href="/issued_cds.csv">issued_cds.csv</a></br></br>
+        <a href="/ended_cds.csv">ended_cds.csv</a></br></br>
+        <div id="divLastUpdated"></div>
+    </div>
+</body>

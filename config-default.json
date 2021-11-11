@@ -1,0 +1,18 @@
+{
+	"debug": true,
+	"hostname": "AAA",
+	"urls": {
+		"grabdata": "AAA"
+	},
+	"etherscan": {
+		"apiKey": "AAA"
+	},
+	"https": {
+		"cert": "./ssl/AAA.crt",
+		"ca": "./ssl/BBB.ca-bundle",
+		"key": "./ssl/CCC.key"
+	},
+	"mongodb": {
+		"connectionString": "mongodb+srv://AAA:BBB@cluster0.CCC.mongodb.net/DDD?retryWrites=true&w=majority"
+	}
+}

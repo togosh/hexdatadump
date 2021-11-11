@@ -9,7 +9,13 @@
   "author": "",
   "license": "",
   "dependencies": {
+    "express": "^4.17.1",
     "fetch-retry": "^5.0.1",
-    "node-fetch": "^3.0.0"
+    "jquery": "^3.6.0",
+    "jsdom": "^18.0.1",
+    "mongoose": "^6.0.12",
+    "node-fetch": "^3.0.0",
+    "node-schedule": "^2.0.0",
+    "socket.io": "^4.3.2"
   }
 }
