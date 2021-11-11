@@ -69,6 +69,13 @@ var httpPort = 80;
 if (DEBUG){ httpPort = 3000; }
 const httpsPort = 443;
 
+var httpsOptions = undefined;
+if(!DEBUG){ httpsOptions = {
+	cert: fs.readFileSync(CONFIG.https.cert),
+	ca: fs.readFileSync(CONFIG.https.ca),
+	key: fs.readFileSync(CONFIG.https.key)
+};}
+
 //var ConnectionSchema = new Schema({
 //	created: {
 //    type: Date, 
