@@ -63,10 +63,10 @@ var grabDataRunning = false;
 var lastUpdated = undefined;
 
 var hostname = CONFIG.hostname;
-if (DEBUG){ hostname = '127.0.0.1'; }
+//if (DEBUG){ hostname = '127.0.0.1'; }
 
 var httpPort = 80; 
-if (DEBUG){ httpPort = 3000; }
+//if (DEBUG){ httpPort = 3000; }
 const httpsPort = 443;
 
 var httpsOptions = undefined;
@@ -179,7 +179,7 @@ async function grabData() {
       var todayTime = parseInt((today.getTime() / 1000).toFixed(0));
       var dayToday = ((todayTime - 1575417600) / 86400) + 2;
       console.log("dayToday: " + dayToday);
-      //day = dayToday;
+      day = dayToday;
 
       var blockNumber = await getEthereumBlock(day); //await getEthereumBlockLatest();
       console.log(blockNumber);
