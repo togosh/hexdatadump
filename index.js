@@ -224,7 +224,7 @@ async function grabData() {
           expected_end_date: expectedEndDateString, //expectedEndDate.toUTCString().split(", ")[1], // Number(expectedEndDate.getTime() / 1000),
 
           stake_days:         Number(row.stakedDays),
-          actual_days_staked: row.stakeEnd ? Number(row.stakeEnd.servedDays) : Number(day - row.startDay),
+          //actual_days_staked: row.stakeEnd ? Number(row.stakeEnd.servedDays) : Number(day - row.startDay),
           
           ////hex_price_when_issued:  prices[row.startDay - 1],
           //hex_price_when_ended:   null
