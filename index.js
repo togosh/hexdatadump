@@ -148,17 +148,17 @@ io.on('connection', (socket) => {
   socket.emit("lastUpdated", lastUpdated);
 });
 
-if(!DEBUG){
-  const rule5 = new schedule.RecurrenceRule();
-  rule5.hour = 0;
-  rule5.minute = 5;
-  rule5.tz = 'Etc/UTC';
+//if(!DEBUG){
+  const rule30 = new schedule.RecurrenceRule();
+  rule30.hour = 0;
+  rule30.minute = 30;
+  rule30.tz = 'Etc/UTC';
   
-  const job5 = schedule.scheduleJob(rule5, function(){
-    log('**** DAILY DATA TIMER 5!');
+  const job30 = schedule.scheduleJob(rule30, function(){
+    log('**** DAILY DATA TIMER 30!');
     if (!grabDataRunning){ grabData(); }
   });
-}
+//}
 
 /////////////////////////////////////////////////////////////////////////
 
