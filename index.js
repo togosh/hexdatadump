@@ -64,9 +64,11 @@ var lastUpdated = undefined;
 
 var hostname = CONFIG.hostname;
 //if (DEBUG){ hostname = '127.0.0.1'; }
+if (DEBUG){ hostname = '127.0.0.1'; }
 
 var httpPort = 80; 
 //if (DEBUG){ httpPort = 3000; }
+if (DEBUG){ httpPort = 3000; }
 const httpsPort = 443;
 
 var httpsOptions = undefined;
