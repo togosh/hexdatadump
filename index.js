@@ -190,7 +190,7 @@ async function grabData() {
       var todayTime = parseInt((today.getTime() / 1000).toFixed(0));
       var dayToday = ((todayTime - 1575417600) / 86400) + 2;
       console.log("dayToday: " + dayToday);
-      //day = dayToday;
+      day = dayToday;
 
       blockNumber = await getEthereumBlock(day); //await getEthereumBlockLatest();
       console.log(blockNumber);
