@@ -335,8 +335,8 @@ async function grabData() {
           stake_id:   row.stakeId,
           address:    row.stakerAddr,
 
-          payout:     Number(row.stakeEnd.payout) / 100000000,
-          penalty:    Number(row.stakeEnd.penalty),
+          payout:     row.stakeGoodAccounting.payout ? (Number(row.stakeGoodAccounting.payout) / 100000000) : null,
+          penalty:    row.stakeGoodAccounting.penalty ? Number(row.stakeGoodAccounting.penalty) : null,
 
           hex_staked: Number(row.stakedHearts / 100000000),
           shares:     Number(row.stakeShares),
