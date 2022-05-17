@@ -323,7 +323,7 @@ async function grabData() {
         var gaDate = (new Date(Number(row.stakeGoodAccounting.timestamp) * 1000));
         var gaDateString = gaDate.getUTCFullYear() + "-" + minTwoDigits(gaDate.getUTCMonth() + 1) + "-" + minTwoDigits(gaDate.getUTCDate());
 
-        var endDate = (new Date(Number(row.stakeEnd.timestamp) * 1000));
+        var endDate = row.stakeEnd ? (new Date(Number(row.stakeEnd.timestamp) * 1000)) : null;
         var endDateString = endDate.getUTCFullYear() + "-" + minTwoDigits(endDate.getUTCMonth() + 1) + "-" + minTwoDigits(endDate.getUTCDate());
 
         var newRow = {
