@@ -166,41 +166,50 @@ io.on('connection', (socket) => {
 
 //test()
 
+var today = undefined;
+var day = undefined
+var blockNumber = undefined;
+var fullData = undefined;
+var prices = undefined;
+var stakeStarts = undefined;
+var stakeEnds = undefined;
+var stakeGoodAccountings = undefined;
+
 async function grabData() {
     grabDataRunning = true;
     log("grabData() START");
     
     try {
-      var day = 6; //703;
+      day = 6; //703;
 
       //var blockNumber = await getEthereumBlock(day);
       //console.log(blockNumber);
 
-      var today = new Date();
+      today = new Date();
       today.setUTCHours(0, 0, 0, 0);
       var todayTime = parseInt((today.getTime() / 1000).toFixed(0));
       var dayToday = ((todayTime - 1575417600) / 86400) + 2;
       console.log("dayToday: " + dayToday);
-      day = dayToday;
+      //day = dayToday;
 
-      var blockNumber = await getEthereumBlock(day); //await getEthereumBlockLatest();
+      blockNumber = await getEthereumBlock(day); //await getEthereumBlockLatest();
       console.log(blockNumber);
 
-      var fullData = await getHEXDailyStatsFullData();
+      fullData = await getHEXDailyStatsFullData();
 
-      var prices = fullData.map(a => a.priceUV2UV3).reverse();
+      prices = fullData.map(a => a.priceUV2UV3).reverse();
       var pricesCSV = prices.join('\n');
       //console.log(pricesCSV);
       fs.writeFileSync('./public/hex_price.csv', pricesCSV);
       //return;
       
       console.time('get_stakeStartDataHistorical');
-      var { list } = await get_stakeStartDataHistorical(blockNumber);
-      //console.log(list);
+      stakeStarts = await get_stakeStartDataHistorical(blockNumber);
+      console.log(stakeStarts);
       console.timeEnd('get_stakeStartDataHistorical');
 
       var stakeStartsList = [];
-      list.forEach(row => {
+      stakeStarts.forEach(row => {
         var newTimestamp = Number(row.timestamp) + (Number(row.stakedDays)*24*60*60);
         var expectedEndDate = new Date(newTimestamp*1000);
         expectedEndDate.setUTCHours(0, 0, 0, 0);
@@ -238,12 +247,16 @@ async function grabData() {
       //console.log(stakeStartsCSV);
       fs.writeFileSync('./public/issued_cds.csv', stakeStartsCSV);
 
+      //var stakeStartsList_Annual = stakeStartsList.filter(a => (a.start_date >= AAA && a.start_date < AAA);
+      //var stakeStartsCSV_Annual = convertCSV(stakeStartsList_Annual);
+
+
       
-      const stakeStartsEnded = list.filter(a => a.stakeEnd);
+      stakeEnds = stakeStarts.filter(a => a.stakeEnd);
       //console.log("stakeStartsEnded.length: " + stakeStartsEnded.length);
 
       var stakeEndsList = [];
-      stakeStartsEnded.forEach(row => {
+      stakeEnds.forEach(row => {
 
         var endDay = new Date(row.stakeEnd.timestamp*1000);
         endDay.setUTCHours(0, 0, 0, 0);
@@ -288,6 +301,71 @@ async function grabData() {
       var stakeEndsCSV = convertCSV(stakeEndsList);
       //console.log(stakeEndsCSV);
       fs.writeFileSync('./public/ended_cds.csv', stakeEndsCSV);
+
+
+
+      stakeGoodAccountings = stakeStarts.filter(a => a.stakeGoodAccounting);
+      console.log("stakeGoodAccountings.length: " + stakeGoodAccountings.length);
+
+      var stakeGoodAccountingsList = [];
+      stakeGoodAccountings.forEach(row => {
+
+        var gaDayDate = new Date(row.stakeGoodAccounting.timestamp*1000);
+        gaDayDate.setUTCHours(0, 0, 0, 0);
+        var gaDayUnix = parseInt((gaDayDate.getTime() / 1000).toFixed(0));
+        var gaDay = ((gaDayUnix - 1575417600) / 86400) + 3;
+
+        var endDayDate = new Date(row.stakeGoodAccounting.timestamp*1000);
+        endDayDate.setUTCHours(0, 0, 0, 0);
+        var endDayUnix = parseInt((endDayDate.getTime() / 1000).toFixed(0));
+        var endDay = ((endDayUnix - 1575417600) / 86400) + 3;
+
+        var gaDate = (new Date(Number(row.stakeGoodAccounting.timestamp) * 1000));
+        var gaDateString = gaDate.getUTCFullYear() + "-" + minTwoDigits(gaDate.getUTCMonth() + 1) + "-" + minTwoDigits(gaDate.getUTCDate());
+
+        var endDate = (new Date(Number(row.stakeEnd.timestamp) * 1000));
+        var endDateString = endDate.getUTCFullYear() + "-" + minTwoDigits(endDate.getUTCMonth() + 1) + "-" + minTwoDigits(endDate.getUTCDate());
+
+        var newRow = {
+          CD_id:      row.id,
+          stake_id:   row.stakeId,
+          address:    row.stakerAddr,
+
+          payout:     Number(row.stakeEnd.payout) / 100000000,
+          penalty:    Number(row.stakeEnd.penalty),
+
+          hex_staked: Number(row.stakedHearts / 100000000),
+          shares:     Number(row.stakeShares),
+          tshares:    Number(row.stakeShares) / 1000000000000,
+          
+          //row.stakeShares.substring(0, row.stakeShares.length - 12) + "." + row.stakeShares.substring(row.stakeShares.length - 12),
+
+          //start_date:         Number(row.timestamp),
+          end_date:          endDateString,  //(new Date(Number(row.stakeEnd.timestamp) * 1000)).toUTCString().split(", ")[1],
+          ga_date:           gaDateString,
+          //expected_end_date:  null,
+
+          stake_days:         Number(row.stakedDays),
+          //actual_days_staked: Number(row.stakeEnd.servedDays),
+
+          ////hex_price_when_issued:  prices[row.startDay - 1],
+          ////hex_price_when_ended:   prices[dayFind - 1],
+
+          start_day: Number(row.startDay),
+          end_day: endDay,
+          ga_day: gaDay,
+
+          block_number: row.stakeGoodAccounting.blockNumber,
+          transaction_hash: row.stakeGoodAccounting.transactionHash,
+        };
+        stakeGoodAccountingsList.push(newRow);
+      });
+      //console.log(stakeGoodAccountingsList);
+
+      var stakeGoodAccountingsCSV = convertCSV(stakeGoodAccountingsList);
+      //console.log(stakeGoodAccountingsCSV);
+      fs.writeFileSync('./public/goodaccounted_cds.csv', stakeGoodAccountingsCSV);
+
 
       //lastUpdated = "Day: " + day + ", Block Number: <a href='https://etherscan.io/block/" + blockNumber + "' target='_blank'>" + blockNumber + "</a>";
       lastUpdated = {
@@ -395,9 +473,7 @@ async function get_stakeStartDataHistorical(blockNumber){
     await sleep(250);
   }
 
-  return {
-    list: list
-  }
+  return list;
 }
 
 async function get_stakeStartsHistorical($lastStakeId, blockNumber){
@@ -447,6 +523,8 @@ async function get_stakeStartsHistorical($lastStakeId, blockNumber){
             stakedShares
             timestamp
             penalty
+            blockNumber
+            transactionHash
           }
         }
       }` 
