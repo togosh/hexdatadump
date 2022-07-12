@@ -174,6 +174,7 @@ var prices = undefined;
 var stakeStarts = undefined;
 var stakeEnds = undefined;
 var stakeGoodAccountings = undefined;
+var stakesActive = undefined;
 
 async function grabData() {
     grabDataRunning = true;
@@ -369,6 +370,38 @@ async function grabData() {
       var stakeGoodAccountingsCSV = convertCSV(stakeGoodAccountingsList);
       //console.log(stakeGoodAccountingsCSV);
       fs.writeFileSync('./public/goodaccounted_cds.csv', stakeGoodAccountingsCSV);
+
+      try {
+      stakesActive = stakeStarts.filter(a => (!a.stakeEnd && !a.stakeGoodAccounting));
+      //console.log(stakesActive);
+
+      var stakesActiveList = [];
+      stakesActive.forEach(row => {
+        var newRow = {
+          address:    row.stakerAddr,
+          shares:     Number(row.stakeShares),
+        }
+        stakesActiveList.push(newRow);
+      });
+      //console.log("stakesActiveList");
+      //console.log(stakesActiveList);
+
+      const res = Array.from(stakesActiveList.reduce(
+        (m, {address, shares}) => m.set(address, (m.get(address) || 0) + shares), 
+        new Map
+      ), ([address, shares]) => ({address, shares}));
+      //console.log("res");
+      //console.log(res);
+
+      const res2 = res.map(obj => ({ ...obj, bshares: obj.shares / 1000000000, tshares: obj.shares / 1000000000000 }))
+
+      var stakesActiveCSV = convertCSV(res2);
+      //console.log(stakesActiveCSV);
+      fs.writeFileSync('./public/active_cds_summed.csv', stakesActiveCSV);
+      } catch (error){
+        console.log("stakesActive ERROR:");
+        console.log(error);
+      }
 
 
       //lastUpdated = "Day: " + day + ", Block Number: <a href='https://etherscan.io/block/" + blockNumber + "' target='_blank'>" + blockNumber + "</a>";
