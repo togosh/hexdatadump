@@ -386,14 +386,16 @@ async function grabData() {
       //console.log("stakesActiveList");
       //console.log(stakesActiveList);
 
-      const res = Array.from(stakesActiveList.reduce(
+      var res = Array.from(stakesActiveList.reduce(
         (m, {address, shares}) => m.set(address, (m.get(address) || 0) + shares), 
         new Map
       ), ([address, shares]) => ({address, shares}));
       //console.log("res");
       //console.log(res);
 
-      const res2 = res.map(obj => ({ ...obj, bshares: obj.shares / 1000000000, tshares: obj.shares / 1000000000000 }))
+      res.sort((a, b) => (a.shares < b.shares) ? 1 : -1);
+
+      var res2 = res.map(obj => ({ ...obj, bshares: obj.shares / 1000000000, tshares: obj.shares / 1000000000000 }));
 
       var stakesActiveCSV = convertCSV(res2);
       //console.log(stakesActiveCSV);
