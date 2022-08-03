@@ -9,6 +9,8 @@
 var CONFIG = require('./config.json');
 var DEBUG = CONFIG.debug;
 
+const HEX_SUBGRAPH_API_ETHEREUM = "https://gateway.thegraph.com/api/" + CONFIG.subgraph.apiKey + "/subgraphs/id/3gYSyeohaa7LtM9dw2q5w2ZuKXMFJrqZQTh2EjqKy5gp";
+
 const http = require('http');
 const https = require('https');
 const express = require('express');
@@ -517,7 +519,7 @@ async function get_stakeStartDataHistorical(blockNumber){
 
 async function get_stakeStartsHistorical($lastStakeId, blockNumber){
 
-  return await fetchRetry('https://api.thegraph.com/subgraphs/name/codeakk/hex', {
+  return await fetchRetry(HEX_SUBGRAPH_API_ETHEREUM, {
     method: 'POST',
     highWaterMark: FETCH_SIZE,
     headers: { 'Content-Type': 'application/json' }, //stakeGoodAccounting: null, stakeEnd: null, 
