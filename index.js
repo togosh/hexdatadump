@@ -31,12 +31,12 @@ var fetchRetry = require('fetch-retry')(fetch, {
     if (attempt > 3) { return false; }
 
     if (error !== null) {
-      console.log(`FETCH --- RETRY ${attempt + 1} --- ERROR --- ` + error.toString()); await sleep(500);
+      console.log(`FETCH --- RETRY ${attempt + 1} --- ERROR --- ` + error.toString()); await sleep(500 * attempt);
       return true;
     } 
 
     if (response.status >= 400) {
-      console.log(`FETCH --- RETRY ${attempt + 1} --- STATUS --- ` + response.status); await sleep(500);
+      console.log(`FETCH --- RETRY ${attempt + 1} --- STATUS --- ` + response.status); await sleep(500 * attempt);
       return true;
     }
 
@@ -46,19 +46,18 @@ var fetchRetry = require('fetch-retry')(fetch, {
 
       if (json.errors && Object.keys(json.errors).length > 0) {
           if (json.errors[0].message) {
-            console.log(`FETCH --- INTERNAL JSON ERROR --- ${attempt + 1} --- ` + json.errors[0].message); await sleep(500);
+            console.log(`FETCH --- INTERNAL JSON ERROR --- ${attempt + 1} --- ` + json.errors[0].message); await sleep(500 * attempt);
             return true;
           }
       }
       
       return false;
     } catch (error) {
-      console.log(`FETCH --- RETRY ${attempt + 1} --- JSON ---` + error.toString()); await sleep(500);
+      console.log(`FETCH --- RETRY ${attempt + 1} --- JSON ---` + error.toString()); await sleep(500 * attempt);
       return true;
     }
   }
 });
-
 
 const FETCH_SIZE = 1048576;
 var grabDataRunning = false;
@@ -147,23 +146,28 @@ var io = undefined;
 if(DEBUG){ io = require('socket.io')(httpServer);
 } else { io = require('socket.io')(httpsServer, {secure: true}); }
 
-io.on('connection', (socket) => {
-	log('SOCKET -- ************* CONNECTED: ' + socket.id + ' *************');
-  socket.emit("lastUpdated", lastUpdated);
-});
-
 //if(!DEBUG){
-  const rule30 = new schedule.RecurrenceRule();
-  rule30.hour = 0;
-  rule30.minute = 30;
-  rule30.tz = 'Etc/UTC';
-  
-  const job30 = schedule.scheduleJob(rule30, function(){
-    log('**** DAILY DATA TIMER 30!');
-    if (!grabDataRunning){ grabData(); }
-  });
+const rule30 = new schedule.RecurrenceRule();
+rule30.hour = 0;
+rule30.minute = 30;
+rule30.tz = 'Etc/UTC';
+
+const job30 = schedule.scheduleJob(rule30, function(){
+  log('**** DAILY DATA TIMER 30!');
+  if (!grabDataRunning){ grabData(); }
+});
 //}
 
+var runGrabTokenHolders = false;
+const ruleTokenHolders = new schedule.RecurrenceRule();
+ruleTokenHolders.hour = 6;
+ruleTokenHolders.minute = 0;
+ruleTokenHolders.tz = 'Etc/UTC';
+
+const jobTokenHolders = schedule.scheduleJob(ruleTokenHolders, function(){
+  log('**** TOKEN HOLDER DATA TIMER 6 HOURS!');
+  if (!runGrabTokenHolders)grabTokenHolders();
+});
 /////////////////////////////////////////////////////////////////////////
 
 //test()
@@ -423,6 +427,40 @@ async function grabData() {
     } 
 }
 
+let grabTokenHolders = async () => {
+  runGrabTokenHolders = true;
+  log("grabTokenHolders() START");
+  
+  try {
+    let day = 0;
+
+    today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    var todayTime = parseInt((today.getTime() / 1000).toFixed(0));
+    var dayToday = ((todayTime - 1575417600) / 86400) + 2;
+    console.log("dayToday: " + dayToday);
+    day = dayToday;
+
+    blockNumber = await getEthereumBlock(day); //await getEthereumBlockLatest();
+    console.log(blockNumber);
+
+    console.time('get_totalTokenHolders');
+    let tokenHolders = await get_totalTokenHolders(blockNumber);
+    console.log(tokenHolders);
+    console.timeEnd('get_totalTokenHolders');
+ 
+    var tokenHoldersCSV = convertCSV(tokenHolders);
+    //console.log(tokenHoldersCSV);
+    fs.writeFileSync('./public/tokenHolders.csv', tokenHoldersCSV);
+
+  } catch (error){
+    log("grabTokenHolders() ERROR - " + error);
+  } finally {
+    runGrabTokenHolders = false;
+    log("grabTokenHolders() END");
+  } 
+}
+
 function convertCSV(list){
   const replacer = (key, value) => value === null ? '' : value // specify how you want to handle null values here
   const header = Object.keys(list[0])
@@ -496,6 +534,161 @@ async function getEthereumBlockLatest(){
     var block = res.data.blocks[0];
     return block.number;
   });
+}
+
+let queryProcess = async (greaterThan, lessThan) => {
+  return new Promise(async function (resolve) {
+    let list = [];
+    let run = true;
+    while (run) {
+      
+      var data = await get_tokenHolders(greaterThan, lessThan, blockNumber);
+  
+      if (data.count <= 0) { break; }
+  
+      list = list.concat(data.list);
+      greaterThan = Number(data.lastNumeralIndex);
+      console.log(greaterThan); 
+      
+      await sleep(1000);
+    }
+  
+    resolve(list);
+
+  });
+}
+
+async function get_totalTokenHolders(blockNumber){
+
+  let lastNumeralIndex = Number(await get_lastTokenHolderNumeralIndex(blockNumber));
+  
+  let chunksNum = 10;
+  let chunkSize = Math.floor(lastNumeralIndex / chunksNum);
+  let chunkRemainder = lastNumeralIndex % chunkSize;
+  let chunks = [];
+  let start = 0;
+  let end = chunkSize;
+  let promise = {};
+
+  for(let i = 0; i < chunksNum; i++){
+    promise = queryProcess(start, end, blockNumber);
+    start += chunkSize;
+    end += chunkSize;
+    chunks.push(promise);
+  }
+
+  if(chunkRemainder > 0) {
+    promise = queryProcess(lastNumeralIndex - chunkRemainder, lastNumeralIndex, blockNumber);
+    chunks.push(promise);
+  }
+
+  let returnList = await Promise.all(chunks).then(lists => { 
+    log('Promise.all -- **************************'); 
+    let concacttedLists = [];
+    for(let i = 0; i < lists.length; i++){
+      concacttedLists = concacttedLists.concat(lists[i]);
+    } 
+    return concacttedLists;
+  });
+  
+  return returnList;
+}
+
+async function get_tokenHolders(greaterThan, lessThan, blockNumber){
+  return await fetchRetry(HEX_SUBGRAPH_API_ETHEREUM, {
+    method: 'POST',
+    highWaterMark: FETCH_SIZE,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: `
+      query {
+        tokenHolders(first: 1000, orderBy: numeralIndex, 
+          block: {number: ` + blockNumber + `},
+          where: { 
+            numeralIndex_gt: "` + greaterThan + `",
+            numeralIndex_lte: "` + lessThan + `",
+          }
+        ) {
+          numeralIndex
+          holderAddress
+          totalSent
+          totalReceived
+          tokenBalance
+          createdTimeStamp
+          createdBlocknumber
+          createdHexDay
+          lastModifiedHexDay
+          lastModifiedTimeStamp
+        }
+      }` 
+    }),
+  })
+  .then(res => res.json())
+  .then(res => {
+    var tokenHolderCount = Object.keys(res.data.tokenHolders).length;
+
+    if (tokenHolderCount <= 0) {
+      return {  
+        count: 0
+      };
+    } 
+    else {
+    var list = res.data.tokenHolders;
+
+    var lastNumeralIndex = res.data.tokenHolders[(tokenHolderCount - 1)].numeralIndex;
+
+    var data = {  
+      list: list,
+      lastNumeralIndex: lastNumeralIndex,
+    };
+
+    return data;
+  }});
+}
+
+async function get_lastTokenHolderNumeralIndex(blockNumber){
+  let $lastNumeralIndex = 0;
+  return await fetchRetry(HEX_SUBGRAPH_API_ETHEREUM, {
+    method: 'POST',
+    highWaterMark: FETCH_SIZE,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: `
+      query {
+        tokenHolders(first: 10, orderBy: numeralIndex, orderDirection: desc
+          block: {number: ` + blockNumber + `},
+          where: { 
+            numeralIndex_gt: "` + $lastNumeralIndex + `",
+          }
+        ) {
+          numeralIndex
+          holderAddress
+          totalSent
+          totalReceived
+          tokenBalance
+          createdTimeStamp
+          createdBlocknumber
+          createdHexDay
+          lastModifiedHexDay
+          lastModifiedTimeStamp
+        }
+      }` 
+    }),
+  })
+  .then(res => res.json())
+  .then(res => {
+    var tokenHolderCount = Object.keys(res.data.tokenHolders).length;
+
+    if (tokenHolderCount <= 0) {
+      return {  
+        count: 0
+      };
+    } 
+    else {
+    var list = res.data.tokenHolders;
+
+    var lastNumeralIndex = res.data.tokenHolders[(tokenHolderCount - 1)].numeralIndex;
+
+    return lastNumeralIndex;
+  }});
 }
 
 async function get_stakeStartDataHistorical(blockNumber){
@@ -593,6 +786,11 @@ async function get_stakeStartsHistorical($lastStakeId, blockNumber){
     return data;
   }});
 }
+
+io.on('connection', (socket) => {
+	log('SOCKET -- ************* CONNECTED: ' + socket.id + ' *************');
+  socket.emit("lastUpdated", lastUpdated);
+});
 
 //////////////////////////////////////
 //// HELPER 
