@@ -159,14 +159,10 @@ const job30 = schedule.scheduleJob(rule30, function(){
 //}
 
 var runGrabTokenHolders = false;
-const ruleTokenHolders = new schedule.RecurrenceRule();
-ruleTokenHolders.hour = 6;
-ruleTokenHolders.minute = 0;
-ruleTokenHolders.tz = 'Etc/UTC';
 
-const jobTokenHolders = schedule.scheduleJob(ruleTokenHolders, function(){
+const jobTokenHolders = schedule.scheduleJob('* */6 * * *', function(){
   log('**** TOKEN HOLDER DATA TIMER 6 HOURS!');
-  if (!runGrabTokenHolders)grabTokenHolders();
+  if (!runGrabTokenHolders) grabTokenHolders();
 });
 /////////////////////////////////////////////////////////////////////////
 
