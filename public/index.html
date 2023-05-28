@@ -12,13 +12,25 @@
     <script>
         var socket = io.connect();
 
-        socket.on('lastUpdated', function (lastUpdated) {
+        socket.on('lastUpdated_ETHEREUM', function (lastUpdated) {
             if (lastUpdated && lastUpdated.day && lastUpdated.block){
-                $("#divLastUpdated").html(
+                $("#divLastUpdated_ETHEREUM").html(
                     "(" + 
                     "Last Updated: " +
                     "Day: " + lastUpdated.day + ", " +
                     "Block: <a href='https://etherscan.io/block/" + lastUpdated.block + "' target='_blank'>" + lastUpdated.block + "</a>" +
+                    ")"
+                ); 
+            }
+        });
+
+        socket.on('lastUpdated_PULSECHAIN', function (lastUpdated) {
+            if (lastUpdated && lastUpdated.day && lastUpdated.block){
+                $("#divLastUpdated_PULSECHAIN").html(
+                    "(" + 
+                    "Last Updated: " +
+                    "Day: " + lastUpdated.day + ", " +
+                    "Block: <a href='https://scan.pulsechain.com/block/" + lastUpdated.block + "' target='_blank'>" + lastUpdated.block + "</a>" +
                     ")"
                 ); 
             }
@@ -28,11 +40,26 @@
 <body style="background-color: black;">
     <div style="color: white;">
         <p>HEXdatadump.com</p>
+
+        <br/>
+        <p>=== ETHEREUM</p>
         <a href="/hex_price.csv">hex_price.csv</a></br></br>
         <a href="/issued_cds.csv">issued_cds.csv</a></br></br>
         <a href="/ended_cds.csv">ended_cds.csv</a></br></br>
         <a href="/goodaccounted_cds.csv">goodaccounted_cds.csv</a></br></br>
         <a href="/active_cds_summed.csv">active_cds_summed.csv</a></br></br>
-        <div id="divLastUpdated"></div>
+        <a href="/tokenHolders.csv">tokenHolders.csv</a></br></br>
+        <div id="divLastUpdated_ETHEREUM"></div>
+
+        <br/>
+        <br/>
+        <p>=== PULSECHAIN</p>
+        <a href="/hex_price_PULSECHAIN.csv">hex_price.csv</a></br></br>
+        <a href="/issued_cds_PULSECHAIN.csv">issued_cds.csv</a></br></br>
+        <a href="/ended_cds_PULSECHAIN.csv">ended_cds.csv</a></br></br>
+        <a href="/goodaccounted_cds_PULSECHAIN.csv">goodaccounted_cds.csv</a></br></br>
+        <a href="/active_cds_summed_PULSECHAIN.csv">active_cds_summed.csv</a></br></br>
+        <a href="/tokenHolders_PULSECHAIN.csv">tokenHolders.csv</a></br></br>
+        <div id="divLastUpdated_PULSECHAIN"></div>
     </div>
 </body>

@@ -1,15 +1,22 @@
 // Get all historical stake data
-//// Created for Jose (https://www.reddit.com/user/hex_crypto_bull/)
 
-//Three CSV tables:
+//CSV tables:
 //- issued_cds  (stakeStarts)       // Desired: hex_staked>0 and shares>0
 //- ended_cds  (stakeEnds)          // Desired: payout>0 and end_date is not null
 //- hex_price  (HEXDailyStats API)
+//- goodaccounted_cds
+//- active_cds_summed
 
 var CONFIG = require('./config.json');
 var DEBUG = CONFIG.debug;
 
-const HEX_SUBGRAPH_API_ETHEREUM = "https://gateway.thegraph.com/api/" + CONFIG.subgraph.apiKey + "/subgraphs/id/3gYSyeohaa7LtM9dw2q5w2ZuKXMFJrqZQTh2EjqKy5gp";
+const HEX_SUBGRAPH_API_ETHEREUM = "https://api.thegraph.com/subgraphs/name/codeakk/hex";
+const HEX_SUBGRAPH_API_PULSECHAIN = "https://graph.pulsechain.com/subgraphs/name/Codeakk/Hex";
+
+const BLOCK_SUBGRAPH_API_ETHEREUM = "https://api.thegraph.com/subgraphs/name/blocklytics/ethereum-blocks";
+const BLOCK_SUBGRAPH_API_PULSECHAIN = "https://graph.pulsechain.com/subgraphs/name/pulsechain/blocks";
+
+const PULSEX_SUBGRAPH_API_PULSECHAIN = "https://graph.pulsechain.com/subgraphs/name/pulsechain/pulsex";
 
 const http = require('http');
 const https = require('https');
@@ -60,8 +67,12 @@ var fetchRetry = require('fetch-retry')(fetch, {
 });
 
 const FETCH_SIZE = 1048576;
-var grabDataRunning = false;
-var lastUpdated = undefined;
+var grabDataRunning_ETHEREUM = false;
+var grabDataRunning_PULSECHAIN = false;
+var lastUpdated_ETHEREUM = undefined;
+var lastUpdated_PULSECHAIN = undefined;
+var ETHEREUM = "ETHEREUM";
+var PULSECHAIN = "PULSECHAIN";
 
 var hostname = CONFIG.hostname;
 //if (DEBUG){ hostname = '127.0.0.1'; }
@@ -132,7 +143,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get("/", function(req, res){ res.sendFile('/index.html', {root: __dirname}); });
 
 app.get("/" + CONFIG.urls.grabdata, function (req, res) {
-  if (!grabDataRunning){ grabData(); }
+  if (!grabDataRunning_ETHEREUM){ grabData(ETHEREUM); }
+  if (!grabDataRunning_PULSECHAIN){ grabData(PULSECHAIN); }
   res.send(new Date().toISOString() + ' - Grab Data!');
 });
 
@@ -154,33 +166,44 @@ rule30.tz = 'Etc/UTC';
 
 const job30 = schedule.scheduleJob(rule30, function(){
   log('**** DAILY DATA TIMER 30!');
-  if (!grabDataRunning){ grabData(); }
+  if (!grabDataRunning_ETHEREUM){ grabData(ETHEREUM); }
+  if (!grabDataRunning_PULSECHAIN){ grabData(PULSECHAIN); }
 });
 //}
 
-var runGrabTokenHolders = false;
+var runGrabTokenHolders_ETHEREUM = false;
+var runGrabTokenHolders_PULSECHAIN = false;
 
 const jobTokenHolders = schedule.scheduleJob('* */6 * * *', function(){
   log('**** TOKEN HOLDER DATA TIMER 6 HOURS!');
-  if (!runGrabTokenHolders) grabTokenHolders();
+  if (!runGrabTokenHolders_ETHEREUM) grabTokenHolders(ETHEREUM);
+  if (!runGrabTokenHolders_PULSECHAIN) grabTokenHolders(PULSECHAIN);
 });
 /////////////////////////////////////////////////////////////////////////
 
 //test()
 
-var today = undefined;
-var day = undefined
-var blockNumber = undefined;
-var fullData = undefined;
-var prices = undefined;
-var stakeStarts = undefined;
-var stakeEnds = undefined;
-var stakeGoodAccountings = undefined;
-var stakesActive = undefined;
+async function grabData(network) {
+    if (network == ETHEREUM){
+      grabDataRunning_ETHEREUM = true;
+    } else if (network == PULSECHAIN){
+      grabDataRunning_PULSECHAIN = true;
+    } else {
+      log("ERROR: grabData() - Unsupported Network - Exit");
+      return;
+    }
+    
+    log("grabData() START --- " + network);
 
-async function grabData() {
-    grabDataRunning = true;
-    log("grabData() START");
+    var today = undefined;
+    var blockNumber = undefined;
+    var day = undefined
+    var fullData = undefined;
+    var prices = undefined;
+    var stakeStarts = undefined;
+    var stakeEnds = undefined;
+    var stakeGoodAccountings = undefined;
+    var stakesActive = undefined;
     
     try {
       day = 6; //703;
@@ -192,24 +215,33 @@ async function grabData() {
       today.setUTCHours(0, 0, 0, 0);
       var todayTime = parseInt((today.getTime() / 1000).toFixed(0));
       var dayToday = ((todayTime - 1575417600) / 86400) + 2;
-      console.log("dayToday: " + dayToday);
+      console.log("dayToday: " + dayToday + " network: " + network);
       day = dayToday;
 
-      blockNumber = await getEthereumBlock(day); //await getEthereumBlockLatest();
-      console.log(blockNumber);
+      blockNumber = await getEthereumBlock(network, day); //await getEthereumBlockLatest();
+      console.log("network " + network + " - blockNumber " + blockNumber);
 
-      fullData = await getHEXDailyStatsFullData();
+      if (network == ETHEREUM){
+        fullData = await getHEXDailyStatsFullData();
+        prices = fullData.map(a => a.priceUV2UV3).reverse();
+        var pricesCSV = prices.join('\n');
+        //console.log(pricesCSV);
+        fs.writeFileSync('./public/hex_price.csv', pricesCSV);
+        //return;
+      } else if (network == PULSECHAIN){
+        prices = await get_priceDataHistorical(network, blockNumber);
+        prices = prices.map(a => a.priceUSD);
+        var pricesCSV = prices.join('\n');
+        //console.log(pricesCSV);
+        fs.writeFileSync('./public/hex_price_PULSECHAIN.csv', pricesCSV);
+      }
 
-      prices = fullData.map(a => a.priceUV2UV3).reverse();
-      var pricesCSV = prices.join('\n');
-      //console.log(pricesCSV);
-      fs.writeFileSync('./public/hex_price.csv', pricesCSV);
-      //return;
+      return;
       
-      console.time('get_stakeStartDataHistorical');
-      stakeStarts = await get_stakeStartDataHistorical(blockNumber);
+      console.time('get_stakeStartDataHistorical ' + network);
+      stakeStarts = await get_stakeStartDataHistorical(network, blockNumber);
       console.log(stakeStarts);
-      console.timeEnd('get_stakeStartDataHistorical');
+      console.timeEnd('get_stakeStartDataHistorical ' + network);
 
       var stakeStartsList = [];
       stakeStarts.forEach(row => {
@@ -248,7 +280,12 @@ async function grabData() {
 
       var stakeStartsCSV = convertCSV(stakeStartsList);
       //console.log(stakeStartsCSV);
-      fs.writeFileSync('./public/issued_cds.csv', stakeStartsCSV);
+      if (network == ETHEREUM){
+        fs.writeFileSync('./public/issued_cds.csv', stakeStartsCSV);
+      } else if (network == PULSECHAIN){
+        fs.writeFileSync('./public/issued_cds_PULSECHAIN.csv', stakeStartsCSV);
+      }
+      
 
       //var stakeStartsList_Annual = stakeStartsList.filter(a => (a.start_date >= AAA && a.start_date < AAA);
       //var stakeStartsCSV_Annual = convertCSV(stakeStartsList_Annual);
@@ -303,12 +340,16 @@ async function grabData() {
 
       var stakeEndsCSV = convertCSV(stakeEndsList);
       //console.log(stakeEndsCSV);
-      fs.writeFileSync('./public/ended_cds.csv', stakeEndsCSV);
+      if (network == ETHEREUM){
+        fs.writeFileSync('./public/ended_cds.csv', stakeEndsCSV);
+      } else if (network == PULSECHAIN){
+        fs.writeFileSync('./public/ended_cds_PULSECHAIN.csv', stakeEndsCSV);
+      }
 
 
 
       stakeGoodAccountings = stakeStarts.filter(a => a.stakeGoodAccounting);
-      console.log("stakeGoodAccountings.length: " + stakeGoodAccountings.length);
+      console.log("stakeGoodAccountings.length: " + network + " - " + stakeGoodAccountings.length);
 
       var stakeGoodAccountingsList = [];
       stakeGoodAccountings.forEach(row => {
@@ -371,7 +412,11 @@ async function grabData() {
 
       var stakeGoodAccountingsCSV = convertCSV(stakeGoodAccountingsList);
       //console.log(stakeGoodAccountingsCSV);
-      fs.writeFileSync('./public/goodaccounted_cds.csv', stakeGoodAccountingsCSV);
+      if (network == ETHEREUM){
+        fs.writeFileSync('./public/goodaccounted_cds.csv', stakeGoodAccountingsCSV);
+      } else if (network == PULSECHAIN){
+        fs.writeFileSync('./public/goodaccounted_cds_PULSECHAIN.csv', stakeGoodAccountingsCSV);
+      }
 
       try {
       stakesActive = stakeStarts.filter(a => (!a.stakeEnd && !a.stakeGoodAccounting));
@@ -401,31 +446,67 @@ async function grabData() {
 
       var stakesActiveCSV = convertCSV(res2);
       //console.log(stakesActiveCSV);
-      fs.writeFileSync('./public/active_cds_summed.csv', stakesActiveCSV);
+      if (network == ETHEREUM){
+        fs.writeFileSync('./public/active_cds_summed.csv', stakesActiveCSV);
+      } else if (network == PULSECHAIN){
+        fs.writeFileSync('./public/active_cds_summed_PULSECHAIN.csv', stakesActiveCSV);
+      }
       } catch (error){
-        console.log("stakesActive ERROR:");
+        console.log("stakesActive ERROR:" + " " + network);
         console.log(error);
       }
 
 
-      //lastUpdated = "Day: " + day + ", Block Number: <a href='https://etherscan.io/block/" + blockNumber + "' target='_blank'>" + blockNumber + "</a>";
-      lastUpdated = {
+      //var lastUpdated = "Day: " + day + ", Block Number: <a href='https://etherscan.io/block/" + blockNumber + "' target='_blank'>" + blockNumber + "</a>";
+      var lastUpdated = {
         day: day,
         block: blockNumber
       };
-      io.emit("lastUpdated", lastUpdated);
+
+      if (network == ETHEREUM){
+        lastUpdated_ETHEREUM = lastUpdated;
+        io.emit("lastUpdated_ETHEREUM", lastUpdated_ETHEREUM);
+      } else if (network == PULSECHAIN){
+        lastUpdated_PULSECHAIN = lastUpdated;
+        io.emit("lastUpdated_PULSECHAIN", lastUpdated_PULSECHAIN);
+      }
 
     } catch (error){
-      log("grabData() ERROR - " + error);
+      log("grabData() ERROR - " + network + " - " + error);
     } finally {
-      grabDataRunning = false;
-      log("grabData() END");
-    } 
+      if (network == ETHEREUM){
+        grabDataRunning_ETHEREUM = false;
+      } else if (network == PULSECHAIN){
+        grabDataRunning_PULSECHAIN = false;
+      }
+      log("grabData() END --- " + network);
+    }
+    
+    try {
+      if (network == ETHEREUM){
+        if (!runGrabTokenHolders_ETHEREUM){ grabTokenHolders(ETHEREUM); }
+      }  else if (network == PULSECHAIN){
+        if (!runGrabTokenHolders_PULSECHAIN){ grabTokenHolders(PULSECHAIN); }
+      }
+    } catch (e){
+      log("grabData() END TOKENHOLDERS --- " + network);
+    }
 }
 
-let grabTokenHolders = async () => {
-  runGrabTokenHolders = true;
-  log("grabTokenHolders() START");
+let grabTokenHolders = async (network) => {
+  if (network == ETHEREUM){
+    runGrabTokenHolders_ETHEREUM = true;
+  } else if (network == PULSECHAIN){
+    runGrabTokenHolders_PULSECHAIN = true;
+  } else {
+    log("ERROR: grabTokenHolders() - Unsupported Network - Exit" + " - network: " + network);
+    return;
+  }
+
+  log("grabTokenHolders() START --- " + network);
+
+  var today = undefined;
+  var blockNumber = undefined;
   
   try {
     let day = 0;
@@ -434,25 +515,34 @@ let grabTokenHolders = async () => {
     today.setUTCHours(0, 0, 0, 0);
     var todayTime = parseInt((today.getTime() / 1000).toFixed(0));
     var dayToday = ((todayTime - 1575417600) / 86400) + 2;
-    console.log("dayToday: " + dayToday);
+    console.log("dayToday: " + network + " - " + dayToday);
     day = dayToday;
 
-    blockNumber = await getEthereumBlock(day); //await getEthereumBlockLatest();
+    blockNumber = await getEthereumBlock(network, day); //await getEthereumBlockLatest();
     console.log(blockNumber);
 
-    console.time('get_totalTokenHolders');
-    let tokenHolders = await get_totalTokenHolders(blockNumber);
+    console.time('get_totalTokenHolders - ' + network);
+    let tokenHolders = await get_totalTokenHolders(network, blockNumber);
     console.log(tokenHolders);
-    console.timeEnd('get_totalTokenHolders');
+    console.timeEnd('get_totalTokenHolders - ' + network);
  
     var tokenHoldersCSV = convertCSV(tokenHolders);
     //console.log(tokenHoldersCSV);
-    fs.writeFileSync('./public/tokenHolders.csv', tokenHoldersCSV);
+
+    if (network == ETHEREUM){
+      fs.writeFileSync('./public/tokenHolders.csv', tokenHoldersCSV);
+    } else if (network == PULSECHAIN){
+      fs.writeFileSync('./public/tokenHolders_PULSECHAIN.csv', tokenHoldersCSV);
+    }
 
   } catch (error){
-    log("grabTokenHolders() ERROR - " + error);
+    log("grabTokenHolders() ERROR - " + network + " - " + error);
   } finally {
-    runGrabTokenHolders = false;
+    if (network == ETHEREUM){
+      runGrabTokenHolders_ETHEREUM = false;
+    } else if (network == PULSECHAIN){
+      runGrabTokenHolders_PULSECHAIN = false;
+    }
     log("grabTokenHolders() END");
   } 
 }
@@ -477,10 +567,20 @@ async function getHEXDailyStatsFullData(){
    }
 }
 
-async function getEthereumBlock(day){
+async function getEthereumBlock(network, day){
+  var API = "";
+  if (network == ETHEREUM){
+    API = BLOCK_SUBGRAPH_API_ETHEREUM;
+  } else if (network == PULSECHAIN){
+    API = BLOCK_SUBGRAPH_API_PULSECHAIN;
+  } else {
+    log("ERROR: getEthereumBlock() - Unsupported Network - Exit - " + network);
+    return;
+  }
+
   var startTime = 1575417600 + ((day - 2) * 86400);
 
-  return await fetchRetry('https://api.thegraph.com/subgraphs/name/blocklytics/ethereum-blocks', {
+  return await fetchRetry(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: `
@@ -507,8 +607,18 @@ async function getEthereumBlock(day){
   });
 }
 
-async function getEthereumBlockLatest(){
-  return await fetchRetry('https://api.thegraph.com/subgraphs/name/blocklytics/ethereum-blocks', {
+async function getEthereumBlockLatest(network){
+  var API = "";
+  if (network == ETHEREUM){
+    API = BLOCK_SUBGRAPH_API_ETHEREUM;
+  } else if (network == PULSECHAIN){
+    API = BLOCK_SUBGRAPH_API_PULSECHAIN;
+  } else {
+    log("ERROR: getEthereumBlockLatest() - Unsupported Network - Exit - " + network);
+    return;
+  }
+
+  return await fetchRetry(API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query: `
@@ -532,13 +642,13 @@ async function getEthereumBlockLatest(){
   });
 }
 
-let queryProcess = async (greaterThan, lessThan) => {
+let queryProcess = async (network, greaterThan, lessThan, blockNumber) => {
   return new Promise(async function (resolve) {
     let list = [];
     let run = true;
     while (run) {
       
-      var data = await get_tokenHolders(greaterThan, lessThan, blockNumber);
+      var data = await get_tokenHolders(network, greaterThan, lessThan, blockNumber);
   
       if (data.count <= 0) { break; }
   
@@ -554,9 +664,9 @@ let queryProcess = async (greaterThan, lessThan) => {
   });
 }
 
-async function get_totalTokenHolders(blockNumber){
+async function get_totalTokenHolders(network, blockNumber){
 
-  let lastNumeralIndex = Number(await get_lastTokenHolderNumeralIndex(blockNumber));
+  let lastNumeralIndex = Number(await get_lastTokenHolderNumeralIndex(network, blockNumber));
   
   let chunksNum = 10;
   let chunkSize = Math.floor(lastNumeralIndex / chunksNum);
@@ -567,14 +677,14 @@ async function get_totalTokenHolders(blockNumber){
   let promise = {};
 
   for(let i = 0; i < chunksNum; i++){
-    promise = queryProcess(start, end, blockNumber);
+    promise = queryProcess(network, start, end, blockNumber);
     start += chunkSize;
     end += chunkSize;
     chunks.push(promise);
   }
 
   if(chunkRemainder > 0) {
-    promise = queryProcess(lastNumeralIndex - chunkRemainder, lastNumeralIndex, blockNumber);
+    promise = queryProcess(network, lastNumeralIndex - chunkRemainder, lastNumeralIndex, blockNumber);
     chunks.push(promise);
   }
 
@@ -590,8 +700,18 @@ async function get_totalTokenHolders(blockNumber){
   return returnList;
 }
 
-async function get_tokenHolders(greaterThan, lessThan, blockNumber){
-  return await fetchRetry(HEX_SUBGRAPH_API_ETHEREUM, {
+async function get_tokenHolders(network, greaterThan, lessThan, blockNumber){
+  var API = "";
+  if (network == ETHEREUM){
+    API = HEX_SUBGRAPH_API_ETHEREUM;
+  } else if (network == PULSECHAIN){
+    API = HEX_SUBGRAPH_API_PULSECHAIN;
+  } else {
+    log("ERROR: get_tokenHolders() - Unsupported Network - Exit - " + network);
+    return;
+  }
+
+  return await fetchRetry(API, {
     method: 'POST',
     highWaterMark: FETCH_SIZE,
     headers: { 'Content-Type': 'application/json' },
@@ -641,9 +761,19 @@ async function get_tokenHolders(greaterThan, lessThan, blockNumber){
   }});
 }
 
-async function get_lastTokenHolderNumeralIndex(blockNumber){
+async function get_lastTokenHolderNumeralIndex(network, blockNumber){
+  var API = "";
+  if (network == ETHEREUM){
+    API = HEX_SUBGRAPH_API_ETHEREUM;
+  } else if (network == PULSECHAIN){
+    API = HEX_SUBGRAPH_API_PULSECHAIN;
+  } else {
+    log("ERROR: get_lastTokenHolderNumeralIndex() - Unsupported Network - Exit - " + network);
+    return;
+  }
+
   let $lastNumeralIndex = 0;
-  return await fetchRetry(HEX_SUBGRAPH_API_ETHEREUM, {
+  return await fetchRetry(API, {
     method: 'POST',
     highWaterMark: FETCH_SIZE,
     headers: { 'Content-Type': 'application/json' },
@@ -687,18 +817,18 @@ async function get_lastTokenHolderNumeralIndex(blockNumber){
   }});
 }
 
-async function get_stakeStartDataHistorical(blockNumber){
+async function get_stakeStartDataHistorical(network, blockNumber){
   var $lastStakeId = 0;
   var list = [];
 
   while (true) {
-    var data = await get_stakeStartsHistorical($lastStakeId, blockNumber);
+    var data = await get_stakeStartsHistorical(network, $lastStakeId, blockNumber);
 
     if (data.count <= 0) { break; }
 
     list = list.concat(data.list);
     $lastStakeId = data.lastStakeId;
-    console.log($lastStakeId);
+    console.log(network + " - " + $lastStakeId);
 
     await sleep(250);
   }
@@ -706,9 +836,18 @@ async function get_stakeStartDataHistorical(blockNumber){
   return list;
 }
 
-async function get_stakeStartsHistorical($lastStakeId, blockNumber){
+async function get_stakeStartsHistorical(network, $lastStakeId, blockNumber){
+  var API = "";
+  if (network == ETHEREUM){
+    API = HEX_SUBGRAPH_API_ETHEREUM;
+  } else if (network == PULSECHAIN){
+    API = HEX_SUBGRAPH_API_PULSECHAIN;
+  } else {
+    log("ERROR: get_stakeStartsHistorical() - Unsupported Network - Exit - " + network);
+    return;
+  }
 
-  return await fetchRetry(HEX_SUBGRAPH_API_ETHEREUM, {
+  return await fetchRetry(API, {
     method: 'POST',
     highWaterMark: FETCH_SIZE,
     headers: { 'Content-Type': 'application/json' }, //stakeGoodAccounting: null, stakeEnd: null, 
@@ -783,9 +922,103 @@ async function get_stakeStartsHistorical($lastStakeId, blockNumber){
   }});
 }
 
+async function get_priceDataHistorical(network, blockNumber){
+  var $lastDate = 0;
+  var list = [];
+
+  while (true) {
+    var data = await get_pricesHistorical(network, $lastDate, blockNumber);
+
+    if (data.count <= 0) { break; }
+
+    list = list.concat(data.list);
+    $lastDate = data.lastDate;
+    console.log(network + " - " + $lastDate);
+
+    await sleep(250);
+  }
+
+  return list;
+}
+
+async function get_pricesHistorical(network, $lastDate, blockNumber){
+  var API = "";
+  if (network == ETHEREUM){
+    log("ERROR: get_pricesHistorical() - Unsupported Network - Exit - " + network);
+    return;
+  } else if (network == PULSECHAIN){
+    API = PULSEX_SUBGRAPH_API_PULSECHAIN;
+  } else {
+    log("ERROR: get_pricesHistorical() - Unsupported Network - Exit - " + network);
+    return;
+  }
+
+  return await fetchRetry(API, {
+    method: 'POST',
+    highWaterMark: FETCH_SIZE,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: `
+      query {
+        tokenDayDatas (
+          first: 1000,
+          orderBy: date,
+          block: {number: ` + blockNumber + `},
+        where: {
+          token: "0x2b591e99afe9f32eaa6214f7b7629768c40eeb39",
+          date_gt: ` + $lastDate + `,
+        })
+        {
+          date
+          token { symbol }
+          priceUSD
+        }
+      }` 
+    }),
+  })
+  .then(res => res.json())
+  .then(res => {
+    var count = Object.keys(res.data.tokenDayDatas).length;
+
+    if (count <= 0) {
+      return {  
+        count: 0
+      };
+    } 
+    else {
+    var list = res.data.tokenDayDatas;
+
+    var lastDate = res.data.tokenDayDatas[(count - 1)].date;
+
+    var data = {  
+      list: list,
+      lastDate: lastDate,
+    };
+
+    return data;
+  }});
+}
+
+/*
+query {
+  tokenDayDatas (
+    first: 20,
+  	orderBy: date,
+  	orderDirection: desc,
+  where: {
+    token: "0x2b591e99afe9f32eaa6214f7b7629768c40eeb39"
+  })
+  {
+    date
+    token { symbol }
+    priceUSD
+  }
+}
+*/
+
 io.on('connection', (socket) => {
 	log('SOCKET -- ************* CONNECTED: ' + socket.id + ' *************');
-  socket.emit("lastUpdated", lastUpdated);
+  socket.emit("lastUpdated_ETHEREUM", lastUpdated_ETHEREUM);
+  socket.emit("lastUpdated_PULSECHAIN", lastUpdated_PULSECHAIN);
 });
 
 //////////////////////////////////////
