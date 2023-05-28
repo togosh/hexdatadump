@@ -235,8 +235,6 @@ async function grabData(network) {
         //console.log(pricesCSV);
         fs.writeFileSync('./public/hex_price_PULSECHAIN.csv', pricesCSV);
       }
-
-      return;
       
       console.time('get_stakeStartDataHistorical ' + network);
       stakeStarts = await get_stakeStartDataHistorical(network, blockNumber);
