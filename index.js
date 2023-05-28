@@ -231,6 +231,7 @@ async function grabData(network) {
       } else if (network == PULSECHAIN){
         prices = await get_priceDataHistorical(network, blockNumber);
         prices = prices.map(a => a.priceUSD);
+        prices.pop();
         var pricesCSV = prices.join('\n');
         //console.log(pricesCSV);
         fs.writeFileSync('./public/hex_price_PULSECHAIN.csv', pricesCSV);
